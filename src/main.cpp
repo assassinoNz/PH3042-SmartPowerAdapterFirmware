@@ -1,16 +1,16 @@
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
 #include <WebSocketsClient.h>
+#include <ESPAsyncTCP.h>
+#include <ESPAsyncWebServer.h>
 #include <ArduinoJson.h>
+#include <LittleFS.h>
 
-WebSocketsClient webSocket;
-const char *SSID = "";
-const char *PSK = "";
-const char *HOST_DOMAIN = "smart-power-adapter-server.fly.dev";
-const short HOST_PORT = 443;
-const char *HOST_WS_ENDPOINT = "/";
+const char *WS_HOST = "smart-power-adapter-httpServer.fly.dev";
+const short WS_HOST_PORT = 443;
+const char *WS_HOST_ENDPOINT = "/";
 
-const char CERTIFICATE[] PROGMEM = R"EOF(
+const char WS_HOST_CERTIFICATE[] PROGMEM = R"EOF(
 -----BEGIN CERTIFICATE-----
 MIIFazCCA1OgAwIBAgIRAIIQz7DSQONZRGPgu2OCiwAwDQYJKoZIhvcNAQELBQAw
 TzELMAkGA1UEBhMCVVMxKTAnBgNVBAoTIEludGVybmV0IFNlY3VyaXR5IFJlc2Vh
@@ -44,6 +44,26 @@ emyPxgcYxn/eR44/KJ4EBs+lVDR3veyJm+kXQ99b21/+jh5Xos1AnX5iItreGCc=
 -----END CERTIFICATE-----
 )EOF";
 
+const char INDEX_HTML[] PROGMEM = R"rawliteral(
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Document</title>
+    </head>
+    <body>
+        <h1>Hello World</h1>
+    </body>
+    </html>
+)rawliteral";
+
+WebSocketsClient webSocketClient;
+AsyncWebServer httpServer(80);
+
+const unsigned char PIN_RESET = D4;
+
 void handleSocketEvent(WStype_t type, uint8_t *payload, size_t length) {
     switch (type) {
         case WStype_DISCONNECTED: {
@@ -52,7 +72,7 @@ void handleSocketEvent(WStype_t type, uint8_t *payload, size_t length) {
         }
         case WStype_CONNECTED: {
             Serial.printf("[WS] CONNECTED TO: %s\n", payload);
-            webSocket.sendTXT("{\"event\": \"introduce\", \"deviceId\": \"123456\"}");
+            webSocketClient.sendTXT("{\"event\": \"introduce\", \"deviceId\": \"123456\"}");
             Serial.println("[FE_OUT]: {\"deviceId\": \"123456\", \"event\": \"introduce\"} STATUS: Ok");
             break;
         }
@@ -107,28 +127,74 @@ void setup() {
     Serial.println("\n==================================================================");
     Serial.println("[SETUP]: Configured Serial communication AT: 115200");
 
-    //WiFi
-    Serial.print("[SETUP]: Configuring WiFi WITH: " + String(SSID) + " ");
-    WiFi.begin(SSID, PSK);
-    while (WiFi.status() != WL_CONNECTED) {
-        Serial.print(".");
-        delay(500);
+    //LittleFS
+    LittleFS.begin();
+
+    if (digitalRead(PIN_RESET) == HIGH) {
+        //CASE: Reset pin is active
+        LittleFS.remove("/HomeAPCredentials.txt");
     }
 
-    if (WiFi.status() == WL_CONNECTED) {
-        Serial.println("\n[SETUP]: Configured WiFi WITH: " + String(SSID));
+    if (LittleFS.exists("/HomeAPCredentials.txt")) {
+        //CASE: Credentials for home AP is available
+        Serial.println("\n[SETUP]: Found stored credentials for a home AP");
+
+        File homeAPCredentials = LittleFS.open("/HomeAPCredentials.txt", "r");
+        String homeApSSID = homeAPCredentials.readStringUntil(',');
+        String homeApPSK = homeAPCredentials.readStringUntil(',');
+        homeAPCredentials.close();
+        Serial.println(homeApSSID);
+        Serial.println(homeApPSK);
+        Serial.println("[SETUP]: Retrieved credentials SSID: " + homeApSSID + " PSK: " + homeApPSK);
+
+        //WiFi
+        Serial.println("[SETUP]: Connecting to WiFi SSID: " + homeApSSID);
+        WiFi.begin("Scorpius", "LogIn.WiFi.NSMTFS");
+        while (WiFi.status() != WL_CONNECTED) {
+            Serial.print(".");
+            delay(500);
+        }
+        Serial.println("\n[SETUP]: Connected to WiFi SSID: " + homeApSSID);
 
         if (time(NULL) < 1663485411) {
             //CASE: System time is not configured
             configTime(19800, 0, "pool.ntp.org");
-            Serial.println("[SETUP]: Configured system time WITH: pool.ntp.org");
+            Serial.println("[SETUP]: Configured system time HOST: pool.ntp.org");
         }
-    }
 
-    webSocket.beginSslWithCA(HOST_DOMAIN, HOST_PORT, HOST_WS_ENDPOINT, CERTIFICATE);
-    webSocket.onEvent(handleSocketEvent);
+        webSocketClient.beginSslWithCA(WS_HOST, WS_HOST_PORT, WS_HOST_ENDPOINT, WS_HOST_CERTIFICATE);
+        webSocketClient.onEvent(handleSocketEvent);
+        Serial.println("\n[SETUP]: Established WebSocket connection HOST: " + String(WS_HOST) + ":" + String(WS_HOST_PORT));
+    } else {
+        //CASE: Create a softAP to change the authentication details
+        Serial.println("\n[SETUP]: No stored credentials for a home AP");
+
+        WiFi.softAP("Smart Power Adapter", "123456789");
+        Serial.print("\n[SETUP]: Configured self AP SSID: Smart Power Adapter PSK: 123456789");
+        
+        httpServer.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
+            request->send_P(200, "text/html", INDEX_HTML);
+        });
+        httpServer.on("/connect", HTTP_GET, [](AsyncWebServerRequest *request) {
+            File homeAPCredentials = LittleFS.open("/HomeAPCredentials.txt", "w");
+            String ssid = request->arg("ssid");
+            String psk = request->arg("psk");
+            homeAPCredentials.print(ssid);
+            homeAPCredentials.print(',');
+            homeAPCredentials.print(psk);
+            homeAPCredentials.print(',');
+            homeAPCredentials.close();
+            Serial.println("[SETUP]: Stored credentials for your home AP SSID: " + ssid + " PSK: " + psk);
+            request->send_P(200, "text/plain", "[SETUP]: Stored credentials for your home AP successfully");
+            ESP.restart();
+        });
+        httpServer.begin();
+        Serial.println("\n[SETUP]: Configured HTTP httpServer PORT: 80");
+    }
 }
 
 void loop() {
-    webSocket.loop();
+    if (WiFi.status() == WL_CONNECTED) {
+        webSocketClient.loop();
+    }
 }
