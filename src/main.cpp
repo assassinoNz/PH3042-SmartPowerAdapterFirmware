@@ -1,48 +1,16 @@
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
-#include <WebSocketsClient.h>
 #include <ESPAsyncTCP.h>
 #include <ESPAsyncWebServer.h>
+#include <AsyncMqttClient.h>
 #include <ArduinoJson.h>
 #include <LittleFS.h>
 
-const char *WS_HOST = "smart-power-adapter-httpServer.fly.dev";
-const short WS_HOST_PORT = 443;
-const char *WS_HOST_ENDPOINT = "/";
-
-const char WS_HOST_CERTIFICATE[] PROGMEM = R"EOF(
------BEGIN CERTIFICATE-----
-MIIFazCCA1OgAwIBAgIRAIIQz7DSQONZRGPgu2OCiwAwDQYJKoZIhvcNAQELBQAw
-TzELMAkGA1UEBhMCVVMxKTAnBgNVBAoTIEludGVybmV0IFNlY3VyaXR5IFJlc2Vh
-cmNoIEdyb3VwMRUwEwYDVQQDEwxJU1JHIFJvb3QgWDEwHhcNMTUwNjA0MTEwNDM4
-WhcNMzUwNjA0MTEwNDM4WjBPMQswCQYDVQQGEwJVUzEpMCcGA1UEChMgSW50ZXJu
-ZXQgU2VjdXJpdHkgUmVzZWFyY2ggR3JvdXAxFTATBgNVBAMTDElTUkcgUm9vdCBY
-MTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAK3oJHP0FDfzm54rVygc
-h77ct984kIxuPOZXoHj3dcKi/vVqbvYATyjb3miGbESTtrFj/RQSa78f0uoxmyF+
-0TM8ukj13Xnfs7j/EvEhmkvBioZxaUpmZmyPfjxwv60pIgbz5MDmgK7iS4+3mX6U
-A5/TR5d8mUgjU+g4rk8Kb4Mu0UlXjIB0ttov0DiNewNwIRt18jA8+o+u3dpjq+sW
-T8KOEUt+zwvo/7V3LvSye0rgTBIlDHCNAymg4VMk7BPZ7hm/ELNKjD+Jo2FR3qyH
-B5T0Y3HsLuJvW5iB4YlcNHlsdu87kGJ55tukmi8mxdAQ4Q7e2RCOFvu396j3x+UC
-B5iPNgiV5+I3lg02dZ77DnKxHZu8A/lJBdiB3QW0KtZB6awBdpUKD9jf1b0SHzUv
-KBds0pjBqAlkd25HN7rOrFleaJ1/ctaJxQZBKT5ZPt0m9STJEadao0xAH0ahmbWn
-OlFuhjuefXKnEgV4We0+UXgVCwOPjdAvBbI+e0ocS3MFEvzG6uBQE3xDk3SzynTn
-jh8BCNAw1FtxNrQHusEwMFxIt4I7mKZ9YIqioymCzLq9gwQbooMDQaHWBfEbwrbw
-qHyGO0aoSCqI3Haadr8faqU9GY/rOPNk3sgrDQoo//fb4hVC1CLQJ13hef4Y53CI
-rU7m2Ys6xt0nUW7/vGT1M0NPAgMBAAGjQjBAMA4GA1UdDwEB/wQEAwIBBjAPBgNV
-HRMBAf8EBTADAQH/MB0GA1UdDgQWBBR5tFnme7bl5AFzgAiIyBpY9umbbjANBgkq
-hkiG9w0BAQsFAAOCAgEAVR9YqbyyqFDQDLHYGmkgJykIrGF1XIpu+ILlaS/V9lZL
-ubhzEFnTIZd+50xx+7LSYK05qAvqFyFWhfFQDlnrzuBZ6brJFe+GnY+EgPbk6ZGQ
-3BebYhtF8GaV0nxvwuo77x/Py9auJ/GpsMiu/X1+mvoiBOv/2X/qkSsisRcOj/KK
-NFtY2PwByVS5uCbMiogziUwthDyC3+6WVwW6LLv3xLfHTjuCvjHIInNzktHCgKQ5
-ORAzI4JMPJ+GslWYHb4phowim57iaztXOoJwTdwJx4nLCgdNbOhdjsnvzqvHu7Ur
-TkXWStAmzOVyyghqpZXjFaH3pO3JLF+l+/+sKAIuvtd7u+Nxe5AW0wdeRlN8NwdC
-jNPElpzVmbUq4JUagEiuTDkHzsxHpFKVK7q4+63SM1N95R1NbdWhscdCb+ZAJzVc
-oyi3B43njTOQ5yOf+1CceWxG1bQVs5ZufpsMljq4Ui0/1lvh+wjChP4kqKOJ2qxq
-4RgqsahDYVvTH9w7jXbyLeiNdd8XM2w9U/t7y0Ff/9yi0GE44Za4rF2LN9d11TPA
-mRGunUHBcnWEvgJBQl9nJEiU0Zsnvgc/ubhPgXRR4Xq37Z0j4r7g1SgEEzwxA57d
-emyPxgcYxn/eR44/KJ4EBs+lVDR3veyJm+kXQ99b21/+jh5Xos1AnX5iItreGCc=
------END CERTIFICATE-----
-)EOF";
+const char *MQTT_HOST = "smart-power-adapter-server.fly.dev";
+const short MQTT_HOST_PORT = 1883;
+const char *MQTT_HOST_USERNAME = "assassino";
+const char *MQTT_HOST_PASSWORD = "assassino@HiveMQ";
+const char *MQTT_CLIENT_ID = "QEIZrUmZGUuzBqRnw0jZ";
 
 const char INDEX_HTML[] PROGMEM = R"rawliteral(
     <!DOCTYPE html>
@@ -59,65 +27,39 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     </html>
 )rawliteral";
 
-WebSocketsClient webSocketClient;
+AsyncMqttClient mqttClient;
 AsyncWebServer httpServer(80);
 
 const unsigned char PIN_RESET = D4;
 
-void handleSocketEvent(WStype_t type, uint8_t *payload, size_t length) {
-    switch (type) {
-        case WStype_DISCONNECTED: {
-            Serial.printf("[WS] DISCONNECTED\n");
-            break;
-        }
-        case WStype_CONNECTED: {
-            Serial.printf("[WS] CONNECTED TO: %s\n", payload);
-            webSocketClient.sendTXT("{\"event\": \"introduce\", \"deviceId\": \"123456\"}");
-            Serial.println("[FE_OUT]: {\"deviceId\": \"123456\", \"event\": \"introduce\"} STATUS: Ok");
-            break;
-        }
-        case WStype_TEXT: {
-            Serial.printf("[FE_IN]: %s STATUS: Ok\n", payload);
+void onMqttConnect(bool sessionPresent) {
+    Serial.println("\n[MQTT]: Established connection HOST: " + String(MQTT_HOST) + ":" + String(MQTT_HOST_PORT));
 
-            DynamicJsonDocument event(1024);
-            deserializeJson(event, payload);
+    mqttClient.subscribe("power", 0);
+}
 
-            const char* name = event["event"];
-            if (strcmp(name, "set-power") == 0) {
-                boolean state = event["state"];
-                pinMode(LED_BUILTIN, OUTPUT);
-                digitalWrite(LED_BUILTIN, !state); //WARNING: LED_BUILTIN seems to be active low
-            }
+void onMqttDisconnect(AsyncMqttClientDisconnectReason reason) {
+    Serial.println("\n[MQTT]: Disconnected BECAUSE: ");
+}
 
-            break;
-        }
-        case WStype_PING: {
-            Serial.printf("[WS] SERVER PINGED\n");
-            break;
-        }
-        case WStype_PONG: {
-            Serial.printf("[WS] SERVER PONGED\n");
-            break;
-        }
-        case WStype_ERROR: {
-            Serial.printf("[WS] ERROR OCCURRED\n");
-            break;
-        }
-        case WStype_BIN: {
-            break;
-        }
-        case WStype_FRAGMENT_TEXT_START: {
-            break;
-        }
-        case WStype_FRAGMENT_BIN_START: {
-            break;
-        }
-        case WStype_FRAGMENT: {
-            break;
-        }
-        case WStype_FRAGMENT_FIN: {
-            break;
-        }
+void onMqttPublish(uint16_t packetId) {
+    Serial.println("\n[MQTT]: Published PACKET_ID: " + String(packetId));
+}
+
+void onMqttSubscribe(uint16_t packetId, uint8_t qos) {
+    Serial.println("\n[MQTT]: Subscribed PACKET_ID: " + String(packetId) + " QOS: " + qos);
+}
+
+void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties properties, size_t len, size_t index, size_t total) {
+    Serial.println("\n[MQTT]: Recieved TOPIC: " + String(topic) + " PAYLOAD: " + String(payload));
+
+    if (strcmp(topic, "power") == 0) {
+        DynamicJsonDocument message(1024);
+        deserializeJson(message, payload);
+
+        const bool state = message["state"];
+        pinMode(LED_BUILTIN, OUTPUT);
+        digitalWrite(LED_BUILTIN, !state); //WARNING: LED_BUILTIN seems to be active low
     }
 }
 
@@ -130,10 +72,11 @@ void setup() {
     //LittleFS
     LittleFS.begin();
 
-    if (digitalRead(PIN_RESET) == HIGH) {
-        //CASE: Reset pin is active
-        LittleFS.remove("/HomeAPCredentials.txt");
-    }
+    // if (digitalRead(PIN_RESET) == HIGH) {
+    //     //CASE: Reset pin is active
+    //     LittleFS.remove("/HomeAPCredentials.txt");
+    //     Serial.println("[SETUP]: Removed stored home AP credentials");
+    // }
 
     if (LittleFS.exists("/HomeAPCredentials.txt")) {
         //CASE: Credentials for home AP is available
@@ -162,9 +105,20 @@ void setup() {
             Serial.println("[SETUP]: Configured system time HOST: pool.ntp.org");
         }
 
-        webSocketClient.beginSslWithCA(WS_HOST, WS_HOST_PORT, WS_HOST_ENDPOINT, WS_HOST_CERTIFICATE);
-        webSocketClient.onEvent(handleSocketEvent);
-        Serial.println("\n[SETUP]: Established WebSocket connection HOST: " + String(WS_HOST) + ":" + String(WS_HOST_PORT));
+        mqttClient.setServer(MQTT_HOST, MQTT_HOST_PORT);
+        mqttClient.setClientId(MQTT_CLIENT_ID);
+        mqttClient.setCredentials(MQTT_HOST_USERNAME, MQTT_HOST_PASSWORD);
+        mqttClient.onConnect(onMqttConnect);
+        mqttClient.onDisconnect(onMqttDisconnect);
+        mqttClient.onPublish(onMqttPublish);
+        mqttClient.onSubscribe(onMqttSubscribe);
+        mqttClient.onMessage(onMqttMessage);
+        mqttClient.connect();
+
+        while (true) {
+            mqttClient.publish("readings", 0, true, "[{\"v\":0.123,\"i\":0.345,\"time\":1674890175442},{\"v\":0.456,\"i\":0.456,\"time\":1674890175442},{\"v\":0.123,\"i\":0.345,\"time\":1674890175442},{\"v\":0.789,\"i\":0.567,\"time\":1674890175442}]");
+            delay(10000);
+        }
     } else {
         //CASE: Create a softAP to change the authentication details
         Serial.println("\n[SETUP]: No stored credentials for a home AP");
@@ -194,7 +148,7 @@ void setup() {
 }
 
 void loop() {
-    if (WiFi.status() == WL_CONNECTED) {
-        webSocketClient.loop();
-    }
+    // if (WiFi.status() == WL_CONNECTED) {
+    //     webSocketClient.loop();
+    // }
 }
