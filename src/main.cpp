@@ -72,11 +72,11 @@ void setup() {
     //LittleFS
     LittleFS.begin();
 
-    // if (digitalRead(PIN_RESET) == HIGH) {
-    //     //CASE: Reset pin is active
-    //     LittleFS.remove("/HomeAPCredentials.txt");
-    //     Serial.println("[SETUP]: Removed stored home AP credentials");
-    // }
+    if (digitalRead(PIN_RESET) == HIGH) {
+        //CASE: Reset pin is active
+        LittleFS.remove("/HomeAPCredentials.txt");
+        Serial.println("[SETUP]: Removed stored home AP credentials");
+    }
 
     if (LittleFS.exists("/HomeAPCredentials.txt")) {
         //CASE: Credentials for home AP is available
@@ -92,7 +92,7 @@ void setup() {
 
         //WiFi
         Serial.println("[SETUP]: Connecting to WiFi SSID: " + homeApSSID);
-        WiFi.begin("Scorpius", "LogIn.WiFi.NSMTFS");
+        WiFi.begin(homeApSSID, homeApPSK);
         while (WiFi.status() != WL_CONNECTED) {
             Serial.print(".");
             delay(500);
