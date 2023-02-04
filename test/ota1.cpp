@@ -10,8 +10,8 @@
 #include <ArduinoOTA.h>
 
 // Replace with your network credentials
-const char* ssid = "Scorpius";
-const char* password = "LogIn.WiFi.NSMTFS";
+const char* ssid = "SSID";
+const char* password = "PSK";
 
 void setup() {
   Serial.begin(115200);
