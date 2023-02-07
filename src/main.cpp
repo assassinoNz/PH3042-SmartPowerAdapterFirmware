@@ -27,18 +27,7 @@ namespace HTTP {
     const short HOST_PORT = 8080;
     const char *FIRMWARE_URL = "/update/firmware.bin";
     const char SELF_AP_HTML[] PROGMEM = R"rawliteral(
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="UTF-8">
-            <meta http-equiv="X-UA-Compatible" content="IE=edge">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Document</title>
-        </head>
-        <body>
-            <h1>Hello World</h1>
-        </body>
-        </html>
+        <!DOCTYPE html><html lang=en><head><meta charset=UTF-8><meta http-equiv=X-UA-Compatible content="IE=edge"><meta name=viewport content="width=device-width,initial-scale=1.0"><style>form{border:5px solid #000;padding:20px}form>div>label{display:block}input{padding:10px;margin:10px 0}</style></head><body><div style="display:flex;justify-content:center;align-items:center;height:100vh;"><form action=credentials><div><label for=ssid>SSID:</label><input type=text id=ssid name=ssid></div><div><label for=psk>PSK:</label><input type=psk id=psk name=psk></div><button type=submit>Save credentials and restart</button></form></div></body></html>
     )rawliteral";
 }
 
@@ -95,7 +84,7 @@ void setup() {
     // if (digitalRead(IO::PIN_RESET) == HIGH) {
     //     //CASE: Reset pin is active
     //     LittleFS.remove(LFS::SELF_AP_CREDENTIALS_PATH);
-    //     Serial.println("[SETUP]: Removed stored home AP credentials");
+    //     Serial.println("[LittleFS]: Removed all home AP credentials");
     // }
 
     Serial.println("\n[SETUP]: Searching for stored credentials for your home AP");
@@ -120,15 +109,15 @@ void setup() {
         Serial.println("[SETUP]: Checking for updates");
         switch(ESPhttpUpdate.update(WIFI::client, HTTP::HOST, HTTP::HOST_PORT, HTTP::FIRMWARE_URL)) {
             case HTTP_UPDATE_FAILED: {
-                Serial.println("[UPDATE] Failed");
+                Serial.println("[OTA] Failed");
                 break;
             }
             case HTTP_UPDATE_NO_UPDATES: {
-                Serial.println("[UPDATE] No updates available");
+                Serial.println("[OTA] No updates available");
                 break;
             }
             case HTTP_UPDATE_OK: {
-                Serial.println("[UPDATE] Successful");
+                Serial.println("[OTA] Successful");
                 break;
             }
         }
@@ -166,7 +155,7 @@ void setup() {
         HTTP::server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
             request->send_P(200, "text/html", HTTP::SELF_AP_HTML);
         });
-        HTTP::server.on("/connect", HTTP_GET, [](AsyncWebServerRequest *request) {
+        HTTP::server.on("/credentials", HTTP_GET, [](AsyncWebServerRequest *request) {
             File homeAPCredentials = LittleFS.open("/HomeAPCredentials.txt", "w");
             String ssid = request->arg("ssid");
             String psk = request->arg("psk");
@@ -176,7 +165,8 @@ void setup() {
             homeAPCredentials.print(',');
             homeAPCredentials.close();
             Serial.println("[SELF_AP]: Stored credentials for your home AP SSID: " + ssid + " PSK: " + psk);
-            request->send_P(200, "text/plain", "[SELF_AP]: Stored credentials for your home AP successfully");
+            request->send_P(200, "text/plain", ("[SELF_AP]: Stored credentials for your home AP SSID: " + ssid + " PSK: " + psk).c_str());
+            delay(2000);
             ESP.restart();
         });
         HTTP::server.begin();

@@ -1,12 +1,43 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Document</title>
+
+    <style>
+        form {
+            border: 5px solid black;
+            padding: 20px;
+        }
+
+        form > div > label {
+            display: block;
+        }
+        
+        input {
+            padding: 10px;
+            margin: 10px 0 10px 0;
+        }
+    </style>
 </head>
+
 <body>
-    <h1>Hello World</h1>
+    <div style="display: flex; justify-content: center; align-items: center; height: 100vh;">
+        <form action="credentials">
+            <div>
+                <label for="ssid">SSID:</label>
+                <input type="text" id="ssid" name="ssid">
+            </div>
+            <div>
+                <label for="psk">PSK:</label>
+                <input type="psk" id="psk" name="psk">
+            </div>
+            <button type="submit">Save credentials and restart</button>
+        </form>
+    </div>
 </body>
+
 </html>
