@@ -14,6 +14,7 @@ namespace IO {
 
 namespace LFS {
     const char *SELF_AP_CREDENTIALS_PATH = "/HomeAPCredentials.txt";
+    const char *MQTT_CLIENT_ID_PATH = "/MQTTClientId.txt";
 }
 
 namespace WIFI {
@@ -21,24 +22,24 @@ namespace WIFI {
 }
 
 namespace HTTP {
-    AsyncWebServer server(80);
-
     const char *HOST = "192.168.1.4";
     const short HOST_PORT = 8080;
     const char *FIRMWARE_URL = "/update/firmware.bin";
     const char SELF_AP_HTML[] PROGMEM = R"rawliteral(
         <!DOCTYPE html><html lang=en><head><meta charset=UTF-8><meta http-equiv=X-UA-Compatible content="IE=edge"><meta name=viewport content="width=device-width,initial-scale=1.0"><style>form{border:5px solid #000;padding:20px}form>div>label{display:block}input{padding:10px;margin:10px 0}</style></head><body><div style="display:flex;justify-content:center;align-items:center;height:100vh;"><form action=credentials><div><label for=ssid>SSID:</label><input type=text id=ssid name=ssid></div><div><label for=psk>PSK:</label><input type=psk id=psk name=psk></div><button type=submit>Save credentials and restart</button></form></div></body></html>
     )rawliteral";
+
+    AsyncWebServer server(80);
 }
 
 namespace MQTT {
-    AsyncMqttClient client;
-
     const char *HOST = "192.168.1.4";
     const short HOST_PORT = 1883;
     const char *HOST_USERNAME = "assassino";
     const char *HOST_PASSWORD = "assassino@HiveMQ";
-    const char *CLIENT_ID = "QEIZrUmZGUuzBqRnw0jZ";
+    const char *CLIENT_ID = "<Read_From_LittleFS>";
+
+    AsyncMqttClient client;
 
     void onMqttConnect(bool sessionPresent) {
         Serial.println("\n[MQTT]: Established connection HOST: " + String(MQTT::HOST) + ":" + String(MQTT::HOST_PORT));
@@ -86,6 +87,15 @@ void setup() {
     //     LittleFS.remove(LFS::SELF_AP_CREDENTIALS_PATH);
     //     Serial.println("[LittleFS]: Removed all home AP credentials");
     // }
+
+    Serial.println("\n[SETUP]: Retrieving MQTT client ID");
+    if (LittleFS.exists(LFS::MQTT_CLIENT_ID_PATH)) {
+        File mqttClientId = LittleFS.open(LFS::MQTT_CLIENT_ID_PATH, "r");
+        MQTT::CLIENT_ID = mqttClientId.readString().c_str();
+    } else {
+        Serial.println("\n[LFS]: No MQTT client ID found. Please contact support");
+        while (true);
+    }
 
     Serial.println("\n[SETUP]: Searching for stored credentials for your home AP");
     if (LittleFS.exists(LFS::SELF_AP_CREDENTIALS_PATH)) {
@@ -142,12 +152,12 @@ void setup() {
         MQTT::client.connect();
 
         while (true) {
-            MQTT::client.publish("readings", 0, true, "[{\"v\":0.123,\"i\":0.345,\"time\":1674890175442},{\"v\":0.456,\"i\":0.456,\"time\":1674890175442},{\"v\":0.123,\"i\":0.345,\"time\":1674890175442},{\"v\":0.789,\"i\":0.567,\"time\":1674890175442}]");
+            MQTT::client.publish(strcat((char *) MQTT::CLIENT_ID, "/readings"), 0, true, "[{\"v\":0.123,\"i\":0.345,\"time\":1674890175442},{\"v\":0.456,\"i\":0.456,\"time\":1674890175442},{\"v\":0.123,\"i\":0.345,\"time\":1674890175442},{\"v\":0.789,\"i\":0.567,\"time\":1674890175442}]");
             delay(10000);
         }
     } else {
         //CASE: Create a softAP to change the authentication details
-        Serial.println("\n[SETUP]: No stored credentials found. COnfiguring self AP");
+        Serial.println("\n[SETUP]: No stored credentials found. Configuring self AP");
 
         WiFi.softAP("Smart Power Adapter", "123456789");
         Serial.print("\n[SELF_AP]: Configured self AP SSID: Smart Power Adapter PSK: 123456789");
