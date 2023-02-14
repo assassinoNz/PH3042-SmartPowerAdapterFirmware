@@ -39,12 +39,15 @@ namespace MQTT {
     const char *HOST_PASSWORD = "assassino@HiveMQ";
     const char *CLIENT_ID = "<Read_From_LittleFS>";
 
+    const char *POWER_TOPIC = strcat((char *) CLIENT_ID, "/power");
+    const char *READINGS_TOPIC = strcat((char *) CLIENT_ID, "/readings");
+
     AsyncMqttClient client;
 
     void onMqttConnect(bool sessionPresent) {
         Serial.println("\n[MQTT]: Established connection HOST: " + String(MQTT::HOST) + ":" + String(MQTT::HOST_PORT));
 
-        client.subscribe("power", 0);
+        client.subscribe(POWER_TOPIC, 0);
     }
 
     void onMqttDisconnect(AsyncMqttClientDisconnectReason reason) {
@@ -62,7 +65,7 @@ namespace MQTT {
     void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties properties, size_t len, size_t index, size_t total) {
         Serial.println("\n[MQTT]: Recieved TOPIC: " + String(topic) + " PAYLOAD: " + String(payload));
 
-        if (strcmp(topic, "power") == 0) {
+        if (strcmp(topic, MQTT::POWER_TOPIC) == 0) {
             DynamicJsonDocument message(1024);
             deserializeJson(message, payload);
 
@@ -152,7 +155,7 @@ void setup() {
         MQTT::client.connect();
 
         while (true) {
-            MQTT::client.publish(strcat((char *) MQTT::CLIENT_ID, "/readings"), 0, true, "[{\"v\":0.123,\"i\":0.345,\"time\":1674890175442},{\"v\":0.456,\"i\":0.456,\"time\":1674890175442},{\"v\":0.123,\"i\":0.345,\"time\":1674890175442},{\"v\":0.789,\"i\":0.567,\"time\":1674890175442}]");
+            MQTT::client.publish(MQTT::READINGS_TOPIC, 0, true, "[{\"v\":0.123,\"i\":0.345,\"time\":1674890175442},{\"v\":0.456,\"i\":0.456,\"time\":1674890175442},{\"v\":0.123,\"i\":0.345,\"time\":1674890175442},{\"v\":0.789,\"i\":0.567,\"time\":1674890175442}]");
             delay(10000);
         }
     } else {
