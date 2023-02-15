@@ -22,7 +22,7 @@ namespace WIFI {
 }
 
 namespace HTTP {
-    const char *HOST = "192.168.1.4";
+    const char *HOST = "150.230.238.30";
     const short HOST_PORT = 8080;
     const char *FIRMWARE_URL = "/update/firmware.bin";
     const char SELF_AP_HTML[] PROGMEM = R"rawliteral(
@@ -33,11 +33,11 @@ namespace HTTP {
 }
 
 namespace MQTT {
-    const char *HOST = "192.168.1.4";
+    const char *HOST = "150.230.238.30";
     const short HOST_PORT = 1883;
     const char *HOST_USERNAME = "assassino";
     const char *HOST_PASSWORD = "assassino@HiveMQ";
-    const char *CLIENT_ID = "<Read_From_LittleFS>";
+    const char *CLIENT_ID = "abcdefgh";
 
     const char *POWER_TOPIC = strcat((char *) CLIENT_ID, "/power");
     const char *READINGS_TOPIC = strcat((char *) CLIENT_ID, "/readings");
@@ -84,6 +84,7 @@ void setup() {
 
     //LittleFS
     LittleFS.begin();
+    //LittleFS.remove(LFS::SELF_AP_CREDENTIALS_PATH);
 
     // if (digitalRead(IO::PIN_RESET) == HIGH) {
     //     //CASE: Reset pin is active
@@ -91,14 +92,14 @@ void setup() {
     //     Serial.println("[LittleFS]: Removed all home AP credentials");
     // }
 
-    Serial.println("\n[SETUP]: Retrieving MQTT client ID");
-    if (LittleFS.exists(LFS::MQTT_CLIENT_ID_PATH)) {
-        File mqttClientId = LittleFS.open(LFS::MQTT_CLIENT_ID_PATH, "r");
-        MQTT::CLIENT_ID = mqttClientId.readString().c_str();
-    } else {
-        Serial.println("\n[LFS]: No MQTT client ID found. Please contact support");
-        while (true);
-    }
+    // Serial.println("\n[SETUP]: Retrieving MQTT client ID");
+    // if (LittleFS.exists(LFS::MQTT_CLIENT_ID_PATH)) {
+    //     File mqttClientId = LittleFS.open(LFS::MQTT_CLIENT_ID_PATH, "r");
+    //     MQTT::CLIENT_ID = mqttClientId.readString().c_str();
+    // } else {
+    //     Serial.println("\n[LFS]: No MQTT client ID found. Please contact support");
+    //     while (true);
+    // }
 
     Serial.println("\n[SETUP]: Searching for stored credentials for your home AP");
     if (LittleFS.exists(LFS::SELF_AP_CREDENTIALS_PATH)) {
