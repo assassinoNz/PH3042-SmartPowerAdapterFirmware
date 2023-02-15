@@ -16,6 +16,24 @@ namespace IO {
 namespace LFS {
     const char *SELF_AP_CREDENTIALS_PATH = "/HomeAPCredentials.txt";
     const char *MQTT_CLIENT_ID_PATH = "/MQTTClientId.txt";
+
+    void writeID(String s){
+        File file = LittleFS.open(LFS::MQTT_CLIENT_ID_PATH, "w");
+        file.print(s);
+        file.close();
+    }
+
+    String getID() {
+        String id;
+        File file = LittleFS.open(LFS::MQTT_CLIENT_ID_PATH, "r");
+        if (!file) {
+            Serial.println("Failed to open file for reading");
+            return ("failed");
+        }
+        while (file.available()) { id = (file.readString()); }
+        file.close();
+        return id;
+    }
 }
 
 namespace SIN {
@@ -24,6 +42,10 @@ namespace SIN {
 
     const int vSrg[3] = {245,   250,    255};
     const int iSrg[3] = {8,     9,      10};
+
+    void surgeProtect(int m){
+        if((getV()> SIN::vSrg[0]) || (getI()> SIN::iSrg[m])) relayOn(false);
+    }
 }
 
 namespace WIFI {
@@ -46,7 +68,6 @@ namespace MQTT {
     const short HOST_PORT = 1883;
     const char *HOST_USERNAME = "assassino";
     const char *HOST_PASSWORD = "assassino@HiveMQ";
-    const char *CLIENT_ID = "abcdefgh";
 
     //const char *POWER_TOPIC = strcat((char *) CLIENT_ID, "/power");
     const char *POWER_TOPIC = "/power";
@@ -86,27 +107,7 @@ namespace MQTT {
     }
 }
 
-void writeID(String s){
-    File file = LittleFS.open(LFS::MQTT_CLIENT_ID_PATH, "w");
-    file.print(s);
-    file.close();
-}
 
-String getID() {
-  String id;
-  File file = LittleFS.open(LFS::MQTT_CLIENT_ID_PATH, "r");
-  if (!file) {
-    Serial.println("Failed to open file for reading");
-    return ("failed");
-  }
-  while (file.available()) { id = (file.readString()); }
-  file.close();
-  return id;
-}
-
-void surgeProtect(int m){
-    if((getV()> SIN::vSrg[0]) || (getI()> SIN::iSrg[m])) relayOn(false);
-}
 
 void setup() {
     //Serial communication
@@ -136,8 +137,8 @@ void setup() {
     //     while (true);
     // }
 
-    //writeID("BS010001");
-    Serial.println("Device ID : " + getID());
+    //LFS::writeID("BS010001");
+    Serial.println("Device ID : " + LFS::getID());
     
 
     Serial.println("\n[SETUP]: Searching for stored credentials for your home AP");
@@ -185,7 +186,7 @@ void setup() {
 
         Serial.println("[SETUP]: Configuring MQTT");
         MQTT::client.setServer(MQTT::HOST, MQTT::HOST_PORT);
-        MQTT::client.setClientId(MQTT::CLIENT_ID);
+        MQTT::client.setClientId((const char *)(LFS::getID()).c_str());
         MQTT::client.setCredentials(MQTT::HOST_USERNAME, MQTT::HOST_PASSWORD);
         MQTT::client.onConnect(MQTT::onMqttConnect);
         MQTT::client.onDisconnect(MQTT::onMqttDisconnect);
@@ -214,9 +215,8 @@ void setup() {
 
                     long t0 = millis();
                     while ((millis()<t0+SIN::rDelay)&&(millis()-t0 >= 0)){
-                        surgeProtect(0);
+                        SIN::surgeProtect(0);
                     }
-                
                 } 
 
                 char buffer[256];
@@ -224,7 +224,7 @@ void setup() {
                 Serial.println(buffer);
 
                 //String t = getID() + (MQTT::READINGS_TOPIC);
-                MQTT::client.publish((getID() + (MQTT::READINGS_TOPIC)).c_str(), 0, true, buffer);
+                MQTT::client.publish((LFS::getID() + (MQTT::READINGS_TOPIC)).c_str(), 0, true, buffer);
                 delay(10000);
             }
         }
