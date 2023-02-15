@@ -48,8 +48,9 @@ namespace MQTT {
     const char *HOST_PASSWORD = "assassino@HiveMQ";
     const char *CLIENT_ID = "abcdefgh";
 
-    const char *POWER_TOPIC = strcat((char *) CLIENT_ID, "/power");
-    const char *READINGS_TOPIC = strcat((char *) CLIENT_ID, "/readings");
+    //const char *POWER_TOPIC = strcat((char *) CLIENT_ID, "/power");
+    const char *POWER_TOPIC = "/power";
+    const char *READINGS_TOPIC = "/readings";//strcat((char *) CLIENT_ID, "/readings");
 
     AsyncMqttClient client;
 
@@ -222,7 +223,8 @@ void setup() {
                 serializeJson(doc2, buffer);
                 Serial.println(buffer);
 
-                MQTT::client.publish(MQTT::READINGS_TOPIC, 0, true, buffer);
+                //String t = getID() + (MQTT::READINGS_TOPIC);
+                MQTT::client.publish((getID() + (MQTT::READINGS_TOPIC)).c_str(), 0, true, buffer);
                 delay(10000);
             }
         }
