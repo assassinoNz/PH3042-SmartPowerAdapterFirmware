@@ -46,6 +46,22 @@ namespace SIN {
     void surgeProtect(int m){
         if((getV()> SIN::vSrg[0]) || (getI()> SIN::iSrg[m])) relayOn(false);
     }
+
+    bool switchMain(){
+        bool s = false;
+        switch (switchAct()){
+            case 1:
+                s = relayOn(!getState());
+                Serial.println("Toggle");
+                break;
+
+            case 2:
+                LittleFS.remove(LFS::SELF_AP_CREDENTIALS_PATH);
+                Serial.println("Full Reset");
+                break;
+        }
+        return s;
+    }
 }
 
 namespace WIFI {
@@ -137,7 +153,7 @@ void setup() {
     //     while (true);
     // }
 
-    //LFS::writeID("BS010001");
+    LFS::writeID("esp8266-dc1493");
     Serial.println("Device ID : " + LFS::getID());
     
 
@@ -156,6 +172,7 @@ void setup() {
         while (WiFi.status() != WL_CONNECTED) {
             Serial.print(".");
             delay(500);
+            //bool Success = switchMain();
         }
         Serial.println("\n[WIFI]: Connected to WiFi SSID: " + homeApSSID);
 
@@ -186,7 +203,10 @@ void setup() {
 
         Serial.println("[SETUP]: Configuring MQTT");
         MQTT::client.setServer(MQTT::HOST, MQTT::HOST_PORT);
-        MQTT::client.setClientId((const char *)(LFS::getID()).c_str());
+
+        // const char *tID = (LFS::getID()).c_str();
+        //MQTT::client.setClientId((LFS::getID() + (MQTT::READINGS_TOPIC)).c_str());
+        // MQTT::client.setClientId((const char *)(LFS::getID()).c_str());
         MQTT::client.setCredentials(MQTT::HOST_USERNAME, MQTT::HOST_PASSWORD);
         MQTT::client.onConnect(MQTT::onMqttConnect);
         MQTT::client.onDisconnect(MQTT::onMqttDisconnect);
@@ -197,11 +217,12 @@ void setup() {
 
         
         while (true) {
-            delay(2000);
+            //bool Success = switchMain();
+            //delay(2000);
             if (!MQTT::client.connected()) {
                 MQTT::client.connect();
-            }
-            else{
+                delay(2000);
+            } else {
                 DynamicJsonDocument doc(1024);
                 DynamicJsonDocument doc2(1024);
                 
