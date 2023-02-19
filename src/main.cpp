@@ -46,11 +46,6 @@ namespace MQTT {
 
     PubSubClient client;
 
-    void onMqttConnect(bool sessionPresent) {
-        Serial.println("\n[MQTT]: Established connection HOST: " + String(MQTT::HOST) + ":" + String(MQTT::HOST_PORT));
-        client.subscribe(POWER_TOPIC.c_str(), 0);
-    }
-
     void onMqttMessage(const char* topic, byte* payload, unsigned int length) {
         Serial.println("\n[MQTT]: Recieved TOPIC: " + String(topic) + " PAYLOAD: " + String((char*) payload));
 
@@ -111,10 +106,10 @@ void setup() {
     Serial.println("\n[SETUP]: Searching for stored credentials for your home AP");
     if (LittleFS.exists(LFS::SELF_AP_CREDENTIALS_PATH)) {
         //CASE: Credentials for home AP is available
-        File homeAPCredentials = LittleFS.open(LFS::SELF_AP_CREDENTIALS_PATH, "r");
-        String homeApSSID = homeAPCredentials.readStringUntil(',');
-        String homeApPSK = homeAPCredentials.readStringUntil(',');
-        homeAPCredentials.close();
+        File file = LittleFS.open(LFS::SELF_AP_CREDENTIALS_PATH, "r");
+        String homeApSSID = file.readStringUntil(',');
+        String homeApPSK = file.readStringUntil(',');
+        file.close();
         Serial.println("[SETUP]: Stored credentials found SSID: " + homeApSSID + " PSK: " + homeApPSK);
 
         //WiFi
@@ -169,10 +164,11 @@ void setup() {
         }
 
         while (true) {
-            MQTT::client.publish(MQTT::READINGS_TOPIC.c_str(), 0, true, "[{\"v\":0.123,\"i\":0.345,\"time\":1674890175442},{\"v\":0.456,\"i\":0.456,\"time\":1674890175442},{\"v\":0.123,\"i\":0.345,\"time\":1674890175442},{\"v\":0.789,\"i\":0.567,\"time\":1674890175442}]");
+            MQTT::client.loop();
+
+            MQTT::client.publish(MQTT::READINGS_TOPIC.c_str(), "[{\"v\":0.123,\"i\":0.345,\"time\":1674890175442},{\"v\":0.456,\"i\":0.456,\"time\":1674890175442},{\"v\":0.123,\"i\":0.345,\"time\":1674890175442},{\"v\":0.789,\"i\":0.567,\"time\":1674890175442}]");
             
-            // MQTT::client.loop();
-            delay(1000);
+            delay(5000);
         }
     } else {
         //CASE: Create a softAP to change the authentication details
