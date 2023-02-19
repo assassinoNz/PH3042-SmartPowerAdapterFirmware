@@ -1,3 +1,5 @@
+#define HARD_CODED_CREDENTIALS
+
 #include <Arduino.h>
 #include <LittleFS.h>
 #include <ESP8266WiFi.h>
@@ -22,7 +24,7 @@ namespace WIFI {
 }
 
 namespace HTTP {
-    const char *HOST = "192.168.1.5";
+    const char *HOST = "150.230.238.30";
     const short HOST_PORT = 8080;
     const char *FIRMWARE_URL = "/update/firmware.bin";
     const char SELF_AP_HTML[] PROGMEM = R"rawliteral(
@@ -33,26 +35,26 @@ namespace HTTP {
 }
 
 namespace MQTT {
-    const char *HOST = "192.168.1.5";
+    const char *HOST = "150.230.238.30";
     const short HOST_PORT = 1883;
     const char *HOST_USERNAME = "assassino";
     const char *HOST_PASSWORD = "assassino";
-    const char *CLIENT_ID = "<CLIENT_ID>";
+    String CLIENT_ID = "<CLIENT_ID>";
 
-    const char *POWER_TOPIC = strcat((char *) CLIENT_ID, "/power");
-    const char *READINGS_TOPIC = strcat((char *) CLIENT_ID, "/readings");
+    String POWER_TOPIC = "<CLIENT_ID>/power";
+    String READINGS_TOPIC = "<CLIENT_ID>/readings";
 
-    PubSubClient client(WIFI::client);
+    PubSubClient client;
 
     void onMqttConnect(bool sessionPresent) {
         Serial.println("\n[MQTT]: Established connection HOST: " + String(MQTT::HOST) + ":" + String(MQTT::HOST_PORT));
-        client.subscribe(POWER_TOPIC, 0);
+        client.subscribe(POWER_TOPIC.c_str(), 0);
     }
 
     void onMqttMessage(const char* topic, byte* payload, unsigned int length) {
         Serial.println("\n[MQTT]: Recieved TOPIC: " + String(topic) + " PAYLOAD: " + String((char*) payload));
 
-        if (strcmp(topic, MQTT::POWER_TOPIC) == 0) {
+        if (strcmp(topic, MQTT::POWER_TOPIC.c_str()) == 0) {
             DynamicJsonDocument message(1024);
             deserializeJson(message, payload);
 
@@ -77,15 +79,30 @@ void setup() {
     //     LittleFS.remove(LFS::SELF_AP_CREDENTIALS_PATH);
     //     Serial.println("[LittleFS]: Removed all home AP credentials");
     // }
-    File mqttClientId = LittleFS.open(LFS::MQTT_CLIENT_ID_PATH, "w");
-    mqttClientId.println("abcdefghi");
-    mqttClientId.close();
+
+    #ifdef HARD_CODED_CREDENTIALS
+        File file = LittleFS.open(LFS::MQTT_CLIENT_ID_PATH, "w");
+        file.print("abcdefghi");
+        file.close();
+
+        file = LittleFS.open(LFS::SELF_AP_CREDENTIALS_PATH, "w");
+        file.print("Scorpius");
+        file.print(',');
+        file.print("LogIn.WiFi.NSMTFS");
+        file.print(',');
+        file.close();
+    #endif
 
     Serial.println("\n[SETUP]: Retrieving MQTT client ID");
     if (LittleFS.exists(LFS::MQTT_CLIENT_ID_PATH)) {
-        File mqttClientId = LittleFS.open(LFS::MQTT_CLIENT_ID_PATH, "r");
-        // MQTT::CLIENT_ID = (char *) mqttClientId.readString().c_str();
-        Serial.println("\n[LFS]: Retrieved MQTT client ID: " + String(MQTT::CLIENT_ID));
+        File file = LittleFS.open(LFS::MQTT_CLIENT_ID_PATH, "r");
+        MQTT::CLIENT_ID = file.readString();
+        file.close();
+
+        MQTT::POWER_TOPIC = MQTT::CLIENT_ID + "/power";
+        MQTT::READINGS_TOPIC = MQTT::CLIENT_ID + "/readings";
+
+        Serial.println("\n[LFS]: Retrieved MQTT client ID: " + MQTT::CLIENT_ID);
     } else {
         Serial.println("\n[LFS]: No MQTT client ID found. Please contact support");
         while (true);
@@ -95,10 +112,8 @@ void setup() {
     if (LittleFS.exists(LFS::SELF_AP_CREDENTIALS_PATH)) {
         //CASE: Credentials for home AP is available
         File homeAPCredentials = LittleFS.open(LFS::SELF_AP_CREDENTIALS_PATH, "r");
-        // String homeApSSID = homeAPCredentials.readStringUntil(',');
-        // String homeApPSK = homeAPCredentials.readStringUntil(',');
-        String homeApSSID = "Scorpius";
-        String homeApPSK = "LogIn.WiFi.NSMTFS";
+        String homeApSSID = homeAPCredentials.readStringUntil(',');
+        String homeApPSK = homeAPCredentials.readStringUntil(',');
         homeAPCredentials.close();
         Serial.println("[SETUP]: Stored credentials found SSID: " + homeApSSID + " PSK: " + homeApPSK);
 
@@ -138,14 +153,15 @@ void setup() {
         }
 
         Serial.println("[SETUP]: Configuring MQTT");
+        MQTT::client.setClient(WIFI::client);
         MQTT::client.setServer(MQTT::HOST, MQTT::HOST_PORT);
         MQTT::client.setCallback(MQTT::onMqttMessage);
 
         Serial.println("[MQTT]: Connecting to broker");
         while (!MQTT::client.connected()) {
-            if (MQTT::client.connect("helloworld", MQTT::HOST_USERNAME, MQTT::HOST_PASSWORD)) {
+            if (MQTT::client.connect(MQTT::CLIENT_ID.c_str(), MQTT::HOST_USERNAME, MQTT::HOST_PASSWORD)) {
                 Serial.println("[MQTT]: Connected BROKER: " + String(MQTT::HOST) + ":" + String(MQTT::HOST_PORT));
-                MQTT::client.subscribe(MQTT::POWER_TOPIC);
+                MQTT::client.subscribe(MQTT::POWER_TOPIC.c_str());
             } else {
                 Serial.print(".");
                 delay(500);
@@ -153,9 +169,10 @@ void setup() {
         }
 
         while (true) {
-            MQTT::client.publish(MQTT::READINGS_TOPIC, 0, true, "[{\"v\":0.123,\"i\":0.345,\"time\":1674890175442},{\"v\":0.456,\"i\":0.456,\"time\":1674890175442},{\"v\":0.123,\"i\":0.345,\"time\":1674890175442},{\"v\":0.789,\"i\":0.567,\"time\":1674890175442}]");
+            MQTT::client.publish(MQTT::READINGS_TOPIC.c_str(), 0, true, "[{\"v\":0.123,\"i\":0.345,\"time\":1674890175442},{\"v\":0.456,\"i\":0.456,\"time\":1674890175442},{\"v\":0.123,\"i\":0.345,\"time\":1674890175442},{\"v\":0.789,\"i\":0.567,\"time\":1674890175442}]");
             
-            MQTT::client.loop();
+            // MQTT::client.loop();
+            delay(1000);
         }
     } else {
         //CASE: Create a softAP to change the authentication details
@@ -168,14 +185,14 @@ void setup() {
             request->send_P(200, "text/html", HTTP::SELF_AP_HTML);
         });
         HTTP::server.on("/credentials", HTTP_GET, [](AsyncWebServerRequest *request) {
-            File homeAPCredentials = LittleFS.open("/HomeAPCredentials.txt", "w");
+            File file = LittleFS.open(LFS::SELF_AP_CREDENTIALS_PATH, "w");
             String ssid = request->arg("ssid");
             String psk = request->arg("psk");
-            homeAPCredentials.print(ssid);
-            homeAPCredentials.print(',');
-            homeAPCredentials.print(psk);
-            homeAPCredentials.print(',');
-            homeAPCredentials.close();
+            file.print(ssid);
+            file.print(',');
+            file.print(psk);
+            file.print(',');
+            file.close();
             Serial.println("[SELF_AP]: Stored credentials for your home AP SSID: " + ssid + " PSK: " + psk);
             request->send_P(200, "text/plain", ("[SELF_AP]: Stored credentials for your home AP SSID: " + ssid + " PSK: " + psk).c_str());
             delay(2000);
