@@ -37,6 +37,7 @@ namespace LFS {
 }
 
 namespace SIN {
+    bool relayState = false; 
     const int nReads = 3;
     const unsigned long rDelay = 100;
 
@@ -94,7 +95,8 @@ namespace MQTT {
     void onMqttConnect(bool sessionPresent) {
         Serial.println("\n[MQTT]: Established connection HOST: " + String(MQTT::HOST) + ":" + String(MQTT::HOST_PORT));
 
-        //client.subscribe(POWER_TOPIC, 0);
+        Serial.println("inTopic:" + (LFS::getID() + (MQTT::POWER_TOPIC)));
+        client.subscribe((LFS::getID() + (MQTT::POWER_TOPIC)).c_str(), 0);
     }
 
     void onMqttDisconnect(AsyncMqttClientDisconnectReason reason) {
@@ -112,24 +114,29 @@ namespace MQTT {
     void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties properties, size_t len, size_t index, size_t total) {
         Serial.println("\n[MQTT]: Recieved TOPIC: " + String(topic) + " PAYLOAD: " + String(payload));
 
-        if (strcmp(topic, MQTT::POWER_TOPIC) == 0) {
+        if (strcmp(topic, (LFS::getID() + (MQTT::POWER_TOPIC)).c_str()) == 0) {
             DynamicJsonDocument message(1024);
             deserializeJson(message, payload);
 
             const bool state = message["state"];
-            pinMode(LED_BUILTIN, OUTPUT);
-            digitalWrite(LED_BUILTIN, !state); //WARNING: LED_BUILTIN seems to be active low
+            if(state) Serial.println("TURN ON");
+            else Serial.println("TURN OFF");
         }
     }
 }
 
 
 
+
 void setup() {
+
+
     //Serial communication
     Serial.begin(115200);
     Serial.println("\n==================================================================");
     Serial.println("[SETUP]: Configured Serial communication AT: 115200");
+
+    pinMode(LED_BUILTIN, OUTPUT);               //temp
 
     //LittleFS
     LittleFS.begin();
@@ -153,7 +160,7 @@ void setup() {
     //     while (true);
     // }
 
-    LFS::writeID("esp8266-dc1493");
+    LFS::writeID("esp8266-af73df");
     Serial.println("Device ID : " + LFS::getID());
     
 
@@ -223,6 +230,7 @@ void setup() {
                 MQTT::client.connect();
                 delay(2000);
             } else {
+
                 DynamicJsonDocument doc(1024);
                 DynamicJsonDocument doc2(1024);
                 
