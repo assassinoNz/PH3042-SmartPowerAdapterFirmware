@@ -8,6 +8,12 @@
 #include <ArduinoJson.h>
 #include <ESP8266httpUpdate.h>
 #include <sensorRead.h>
+#include <ESP8266HTTPClient.h>
+
+
+WiFiClientSecure client;
+
+HTTPClient http;
 
 namespace IO {
     const unsigned char PIN_RESET = D4;
@@ -78,6 +84,8 @@ namespace HTTP {
     )rawliteral";
 
     AsyncWebServer server(80);
+    
+
 }
 
 namespace MQTT {
@@ -137,6 +145,7 @@ void setup() {
     Serial.println("[SETUP]: Configured Serial communication AT: 115200");
 
     pinMode(LED_BUILTIN, OUTPUT);               //temp
+    client.setInsecure();
 
     //LittleFS
     LittleFS.begin();
@@ -255,6 +264,25 @@ void setup() {
                 //String t = getID() + (MQTT::READINGS_TOPIC);
                 MQTT::client.publish((LFS::getID() + (MQTT::READINGS_TOPIC)).c_str(), 0, true, buffer);
                 delay(10000);
+
+
+                DynamicJsonDocument doc3(1024);
+                   doc3["device_id"] = getV();
+                   doc3["data reading"] = buffer;
+                   
+                   char buffer2[256];
+                   serializeJson(doc3, buffer2);
+                   Serial.println(buffer2);
+
+                http.begin(client, "wandering-water-6831.fly.dev", 443, "/predict", true);
+                http.addHeader("Content-Type", "application/json");
+                //int httpResponseCode = http.POST("{\"device_id\":\"QEIZrUmZGUuzBqRnw0jZ\",\"data reading\":{\"i\":0.9900436818128375,\"time\":1676362048419,\"v\":0.5681495890359043}}");
+                int httpResponseCode = http.POST(buffer2);
+                String payload = http.getString(); // Get the response payload
+                Serial.println(httpResponseCode);
+                Serial.println(payload); // Print request response payload
+
+                http.end(); // Close connection         
             }
         }
     } else {
