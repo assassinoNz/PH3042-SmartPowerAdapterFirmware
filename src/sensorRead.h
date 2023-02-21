@@ -32,7 +32,7 @@
 #define iOn D2
 #define sw D7
 
-#define relayPin LED_BUILTIN //D5
+#define relayPin D5
 #define count 10000
 #define relay_active LOW    //change depending on active high/low
 

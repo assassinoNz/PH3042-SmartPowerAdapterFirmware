@@ -125,10 +125,11 @@ namespace MQTT {
         if (strcmp(topic, (LFS::getID() + (MQTT::POWER_TOPIC)).c_str()) == 0) {
             DynamicJsonDocument message(1024);
             deserializeJson(message, payload);
+            delay(3000);
 
             const bool state = message["state"];
-            if(state) Serial.println("TURN ON");
-            else Serial.println("TURN OFF");
+            if(state) relayOn(true);//Serial.println("TURN ON");
+            else relayOn(false);//Serial.println("TURN OFF");
         }
     }
 }
@@ -137,6 +138,7 @@ namespace MQTT {
 
 
 void setup() {
+    setup_Analog();
 
 
     //Serial communication
@@ -169,7 +171,7 @@ void setup() {
     //     while (true);
     // }
 
-    LFS::writeID("esp8266-af73df");
+    LFS::writeID("esp8266-52b801");
     Serial.println("Device ID : " + LFS::getID());
     
 
@@ -191,6 +193,11 @@ void setup() {
             //bool Success = switchMain();
         }
         Serial.println("\n[WIFI]: Connected to WiFi SSID: " + homeApSSID);
+
+        // relayOn(true);
+        // relayOn(false);
+        // relayOn(true);
+        // relayOn(false);
 
         //Updates
         Serial.println("[SETUP]: Checking for updates");
@@ -266,23 +273,23 @@ void setup() {
                 delay(10000);
 
 
-                DynamicJsonDocument doc3(1024);
-                   doc3["device_id"] = getV();
-                   doc3["data reading"] = buffer;
+                // DynamicJsonDocument doc3(1024);
+                //    doc3["device_id"] = LFS::getID();
+                //    doc3["data reading"] = buffer;
                    
-                   char buffer2[256];
-                   serializeJson(doc3, buffer2);
-                   Serial.println(buffer2);
+                //    char buffer2[256];
+                //    serializeJson(doc3, buffer2);
+                //    Serial.println(buffer2);
 
-                http.begin(client, "wandering-water-6831.fly.dev", 443, "/predict", true);
-                http.addHeader("Content-Type", "application/json");
-                //int httpResponseCode = http.POST("{\"device_id\":\"QEIZrUmZGUuzBqRnw0jZ\",\"data reading\":{\"i\":0.9900436818128375,\"time\":1676362048419,\"v\":0.5681495890359043}}");
-                int httpResponseCode = http.POST(buffer2);
-                String payload = http.getString(); // Get the response payload
-                Serial.println(httpResponseCode);
-                Serial.println(payload); // Print request response payload
+                // http.begin(client, "wandering-water-6831.fly.dev", 443, "/predict", true);
+                // http.addHeader("Content-Type", "application/json");
+                // //int httpResponseCode = http.POST("{\"device_id\":\"QEIZrUmZGUuzBqRnw0jZ\",\"data reading\":{\"i\":0.9900436818128375,\"time\":1676362048419,\"v\":0.5681495890359043}}");
+                // int httpResponseCode = http.POST(buffer2);
+                // String payload = http.getString(); // Get the response payload
+                // Serial.println(httpResponseCode);
+                // Serial.println(payload); // Print request response payload
 
-                http.end(); // Close connection         
+                // http.end(); // Close connection         
             }
         }
     } else {
