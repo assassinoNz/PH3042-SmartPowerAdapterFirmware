@@ -9,6 +9,8 @@
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
 #include <ESP8266httpUpdate.h>
+#include <sensorRead.h>
+#include <ESP8266HTTPClient.h>
 
 namespace IO {
     const unsigned char PIN_RESET = D4;
@@ -17,6 +19,54 @@ namespace IO {
 namespace LFS {
     const char *SELF_AP_CREDENTIALS_PATH = "/HomeAPCredentials.txt";
     const char *MQTT_CLIENT_ID_PATH = "/MQTTClientId.txt";
+
+        void writeID(String s){
+        File file = LittleFS.open(LFS::MQTT_CLIENT_ID_PATH, "w");
+        file.print(s);
+        file.close();
+    }
+
+    String getID() {
+        String id;
+        File file = LittleFS.open(LFS::MQTT_CLIENT_ID_PATH, "r");
+        if (!file) {
+            Serial.println("Failed to open file for reading");
+            return ("failed");
+        }
+        while (file.available()) { id = (file.readString()); }
+        file.close();
+        return id;
+    }
+
+}
+
+namespace SIN {
+    bool relayState = false; 
+    const int nReads = 3;
+    const unsigned long rDelay = 100;
+
+    const int vSrg[3] = {245,   250,    255};
+    const int iSrg[3] = {8,     9,      10};
+
+    void surgeProtect(int m){
+        if((getV()> SIN::vSrg[0]) || (getI()> SIN::iSrg[m])) relayOn(false);
+    }
+
+    bool switchMain(){
+        bool s = false;
+        switch (switchAct()){
+            case 1:
+                s = relayOn(!getState());
+                Serial.println("Toggle");
+                break;
+
+            case 2:
+                LittleFS.remove(LFS::SELF_AP_CREDENTIALS_PATH);
+                Serial.println("Full Reset");
+                break;
+        }
+        return s;
+    }
 }
 
 namespace WIFI {
@@ -61,6 +111,8 @@ namespace MQTT {
 }
 
 void setup() {
+    setup_Analog();
+
     //Serial communication
     Serial.begin(115200);
     Serial.println("\n==================================================================");
@@ -166,9 +218,34 @@ void setup() {
         while (true) {
             MQTT::client.loop();
 
-            MQTT::client.publish(MQTT::READINGS_TOPIC.c_str(), "[{\"v\":0.123,\"i\":0.345,\"time\":1674890175442},{\"v\":0.456,\"i\":0.456,\"time\":1674890175442},{\"v\":0.123,\"i\":0.345,\"time\":1674890175442},{\"v\":0.789,\"i\":0.567,\"time\":1674890175442}]");
+           
+                DynamicJsonDocument doc(1024);
+                DynamicJsonDocument doc2(1024);
+                
+                for (int i = 0; i < SIN::nReads; i++){
+                    doc["v"] = getV();
+                    doc["i"] = getI();
+                    doc["time"] = time(NULL);
+
+                    doc2[i] = doc;
+                    delay(SIN::rDelay);
+
+                    long t0 = millis();
+                    while ((millis()<t0+SIN::rDelay)&&(millis()-t0 >= 0)){
+                        SIN::surgeProtect(0);
+                    }
+                } 
+
+                char buffer[256];
+                serializeJson(doc2, buffer);
+                Serial.println(buffer);
+
+                //String t = getID() + (MQTT::READINGS_TOPIC);
+                MQTT::client.publish((LFS::getID() + (MQTT::READINGS_TOPIC)).c_str(), 0, true, buffer);
+                
+            //MQTT::client.publish(MQTT::READINGS_TOPIC.c_str(), "[{\"v\":0.123,\"i\":0.345,\"time\":1674890175442},{\"v\":0.456,\"i\":0.456,\"time\":1674890175442},{\"v\":0.123,\"i\":0.345,\"time\":1674890175442},{\"v\":0.789,\"i\":0.567,\"time\":1674890175442}]");
+                delay(5000);
             
-            delay(5000);
         }
     } else {
         //CASE: Create a softAP to change the authentication details
