@@ -89,7 +89,7 @@ namespace MQTT {
             const bool state = message["state"];
             pinMode(LED_BUILTIN, OUTPUT);
             digitalWrite(LED_BUILTIN, !state); //WARNING: LED_BUILTIN seems to be active low
-            relayOn(state);
+            relayOn(!state);
 
         }
     }
@@ -204,8 +204,8 @@ void setup() {
         while (true) {
             MQTT::client.loop();
 
-            int sw = 0;
-            // int sw = switchAct();
+            // int sw = 0;
+            int sw = switchAct();
             if (sw==1) {
                 if (getState()) relayOn(false);
                 else relayOn(true);                
