@@ -1,4 +1,4 @@
-#define HARD_CODED_CREDENTIALS
+// #define HARD_CODED_CREDENTIALS
 
 #include <Arduino.h>
 #include <LittleFS.h>
@@ -131,9 +131,9 @@ void setup() {
         LFS::file.close();
 
         LFS::file = LittleFS.open(LFS::SELF_AP_CREDENTIALS_PATH, "w");
-        LFS::file.print("Scorpius");
+        LFS::file.print("<SSID>");
         LFS::file.print(',');
-        LFS::file.print("LogIn.WiFi.NSMTFS");
+        LFS::file.print("<PSK>");
         LFS::file.print(',');
         LFS::file.close();
     #endif
