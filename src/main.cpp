@@ -1,4 +1,4 @@
-#define HARD_CODED_CREDENTIALS
+//#define HARD_CODED_CREDENTIALS
 
 #include <Arduino.h>
 #include <LittleFS.h>
