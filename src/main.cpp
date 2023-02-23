@@ -39,6 +39,8 @@ namespace SIN {
     bool relayState = false; 
     const int nReads = 3;
     const unsigned long rDelay = 100;
+    bool smart = false;
+    bool predict = false;
 
     const float vSrg[3] =     {245,   250,    255};
     const float vSrgMin[3] =  {225,   230,    235};
@@ -75,6 +77,7 @@ namespace MQTT {
 
     String POWER_TOPIC = "<CLIENT_ID>/power";
     String READINGS_TOPIC = "<CLIENT_ID>/readings";
+    String SMART_TOPIC = "<CLIENT_ID>/smartmode";
 
     PubSubClient client;
 
@@ -84,13 +87,23 @@ namespace MQTT {
         if (strcmp(topic, MQTT::POWER_TOPIC.c_str()) == 0) {
             DynamicJsonDocument message(1024);
             deserializeJson(message, payload);
-            Serial.println("GOT MSG");
+            Serial.println("GOT POWER");
 
             const bool state = message["state"];
+            //pinMode(LED_BUILTIN, OUTPUT);
+            //digitalWrite(LED_BUILTIN, !state); //WARNING: LED_BUILTIN seems to be active low
+            relayOn(!state);
+        }
+
+        if (strcmp(topic, MQTT::SMART_TOPIC.c_str()) == 0) {
+            DynamicJsonDocument message(1024);
+            deserializeJson(message, payload);
+            Serial.println("GOT SMART");
+
+            const bool state = message["state"];    // KEY
             pinMode(LED_BUILTIN, OUTPUT);
             digitalWrite(LED_BUILTIN, !state); //WARNING: LED_BUILTIN seems to be active low
-            relayOn(!state);
-
+            SIN::smart = state;
         }
     }
 }
@@ -115,7 +128,7 @@ void setup() {
 
     #ifdef HARD_CODED_CREDENTIALS
         File file = LittleFS.open(LFS::MQTT_CLIENT_ID_PATH, "w");
-        file.print("abcdefghi");
+        file.print("smart_check");
         file.close();
 
         file = LittleFS.open(LFS::SELF_AP_CREDENTIALS_PATH, "w");
@@ -134,6 +147,7 @@ void setup() {
 
         MQTT::POWER_TOPIC = MQTT::CLIENT_ID + "/power";
         MQTT::READINGS_TOPIC = MQTT::CLIENT_ID + "/readings";
+        MQTT::SMART_TOPIC = MQTT::CLIENT_ID + "/smartmode";
 
         Serial.println("\n[LFS]: Retrieved MQTT client ID: " + MQTT::CLIENT_ID);
     } else {
@@ -195,6 +209,7 @@ void setup() {
             if (MQTT::client.connect(MQTT::CLIENT_ID.c_str(), MQTT::HOST_USERNAME, MQTT::HOST_PASSWORD)) {
                 Serial.println("[MQTT]: Connected BROKER: " + String(MQTT::HOST) + ":" + String(MQTT::HOST_PORT));
                 MQTT::client.subscribe(MQTT::POWER_TOPIC.c_str());
+                MQTT::client.subscribe(MQTT::SMART_TOPIC.c_str());
             } else {
                 Serial.print(".");
                 delay(500);
@@ -204,6 +219,7 @@ void setup() {
         while (true) {
             MQTT::client.loop();
 
+            //Switch Action===========================================================
             // int sw = 0;
             int sw = switchAct();
             if (sw==1) {
@@ -214,6 +230,10 @@ void setup() {
                 LittleFS.remove(LFS::SELF_AP_CREDENTIALS_PATH);
                 Serial.println("[LittleFS]: Removed all home AP credentials");
             }
+
+            //Smart ACtion
+            if (SIN::smart) relayOn(SIN::predict);
+            
             
             
 
