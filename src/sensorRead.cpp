@@ -34,7 +34,7 @@ float getI(){
   digitalWrite(vOn,LOW);
   digitalWrite(iOn,HIGH);
   
-  for(int i = 0;i<10000;i++){
+  for(int i = 0;i<100;i++){
     v = analogRead(A0);
     if(v>mx) mx=v;    
   }

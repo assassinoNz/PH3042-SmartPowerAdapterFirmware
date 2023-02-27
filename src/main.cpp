@@ -237,8 +237,8 @@ void setup() {
 
             MQTT::jsonReadings.clear();
             for (MQTT::i = 0; MQTT::i < SIN::nReads; MQTT::i++) {
-                MQTT::jsonReading["v"] = analogRead(A0);
-                MQTT::jsonReading["i"] = analogRead(A0);
+                MQTT::jsonReading["v"] = getI();
+                MQTT::jsonReading["i"] = getV();
                 MQTT::jsonReading["time"] = time(NULL);
                 MQTT::jsonReadings[MQTT::i] = MQTT::jsonReading;
                 // delay(SIN::rDelay);
