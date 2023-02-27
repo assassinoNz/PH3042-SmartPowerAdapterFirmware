@@ -86,9 +86,11 @@ namespace MQTT {
     String SMART_TOPIC = "<CLIENT_ID>/smartmode";
 
     PubSubClient client;
-    DynamicJsonDocument doc1(1024);
-    DynamicJsonDocument doc2(1024);
+    DynamicJsonDocument jsonReading(128);
+    DynamicJsonDocument jsonReadings(512);
+    DynamicJsonDocument jsonRequest(256);
     char buffer[256];
+    unsigned char i;
 
     void onMqttMessage(const char* topic, byte* payload, unsigned int length) {
         Serial.println("\n[MQTT]: Recieved TOPIC: " + String(topic));
@@ -138,7 +140,7 @@ void setup() {
         LFS::file.close();
     #endif
 
-    Serial.println("\n[SETUP]: Retrieving MQTT client ID");
+    Serial.println("\n[SETUP]: Reading MQTT client ID");
     if (LittleFS.exists(LFS::MQTT_CLIENT_ID_PATH)) {
         LFS::file = LittleFS.open(LFS::MQTT_CLIENT_ID_PATH, "r");
         MQTT::CLIENT_ID = LFS::file.readString();
@@ -197,7 +199,7 @@ void setup() {
         if (time(NULL) < 1663485411) {
             //CASE: System time is not configured
             configTime(19800, 0, "pool.ntp.org");
-            Serial.println("[TIME]: Configured system time HOST: pool.ntp.org");
+            Serial.println("[TIME]: Configured HOST: pool.ntp.org");
         }
 
         Serial.println("[SETUP]: Configuring MQTT");
@@ -233,33 +235,26 @@ void setup() {
             // }
             // if (SIN::smart) relayOn(SIN::predict);
 
-            DynamicJsonDocument doc(1024);
-            DynamicJsonDocument doc2(1024);
-            for (int i = 0; i < SIN::nReads; i++){
-                doc["v"] = analogRead(A0);
-                doc["i"] = analogRead(A0);
-                doc["time"] = time(NULL);
-
-                doc2[i] = doc;
+            MQTT::jsonReadings.clear();
+            for (MQTT::i = 0; MQTT::i < SIN::nReads; MQTT::i++) {
+                MQTT::jsonReading["v"] = analogRead(A0);
+                MQTT::jsonReading["i"] = analogRead(A0);
+                MQTT::jsonReading["time"] = time(NULL);
+                MQTT::jsonReadings[MQTT::i] = MQTT::jsonReading;
                 // delay(SIN::rDelay);
 
                 // long t0 = millis();
                 // while ((millis()<t0+SIN::rDelay)&&(millis()-t0 >= 0)){
                 //     SIN::surgeProtect(0);
                 // }
-            } 
+            }
+            serializeJson(MQTT::jsonReadings, MQTT::buffer);
+            MQTT::client.publish(MQTT::READINGS_TOPIC.c_str(), MQTT::buffer);
 
-            char buffer[256];
-            serializeJson(doc2, buffer);
-            MQTT::client.publish(MQTT::READINGS_TOPIC.c_str(), buffer);
-
-            DynamicJsonDocument doc3(1024);
-            doc3["device_id"] = MQTT::CLIENT_ID;
-            doc3["data reading"] = doc;
-            
-            char buffer2[256];
-            serializeJson(doc3, buffer2);
-            MQTT::client.publish(MQTT::ONOFF_PREDICTION_TOPIC_SEND.c_str(),buffer2);
+            MQTT::jsonRequest["device_id"] = MQTT::CLIENT_ID;
+            MQTT::jsonRequest["data_reading"] = MQTT::jsonReading;
+            serializeJson(MQTT::jsonRequest, MQTT::buffer);
+            MQTT::client.publish(MQTT::ONOFF_PREDICTION_TOPIC_SEND.c_str(), MQTT::buffer);
 
             delay(1000);
         }
