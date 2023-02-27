@@ -127,13 +127,13 @@ void setup() {
 
     #ifdef HARD_CODED_CREDENTIALS
         LFS::file = LittleFS.open(LFS::MQTT_CLIENT_ID_PATH, "w");
-        LFS::file.print("nirmal");
+        LFS::file.print("<CLIENT_ID>");
         LFS::file.close();
 
         LFS::file = LittleFS.open(LFS::SELF_AP_CREDENTIALS_PATH, "w");
-        LFS::file.print("Scorpius");
+        LFS::file.print("<SSID>");
         LFS::file.print(',');
-        LFS::file.print("LogIn.WiFi.NSMTFS");
+        LFS::file.print("<PSK>");
         LFS::file.print(',');
         LFS::file.close();
     #endif
