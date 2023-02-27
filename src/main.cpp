@@ -88,7 +88,7 @@ namespace MQTT {
     PubSubClient client;
     DynamicJsonDocument jsonReading(128);
     DynamicJsonDocument jsonReadings(512);
-    DynamicJsonDocument jsonRequest(256);
+    DynamicJsonDocument jsonRequest(512);
     char buffer[256];
     unsigned char i;
 
