@@ -1,4 +1,4 @@
-// #define HARD_CODED_CREDENTIALS
+#define HARD_CODED_CREDENTIALS
 
 #include <Arduino.h>
 #include <LittleFS.h>
@@ -34,31 +34,17 @@ namespace WEB {
         <!DOCTYPE html><html lang=en><head><meta charset=UTF-8><meta http-equiv=X-UA-Compatible content="IE=edge"><meta name=viewport content="width=device-width,initial-scale=1.0"><style>form{border:5px solid #000;padding:20px}form>div>label{display:block}input{padding:10px;margin:10px 0}</style></head><body><div style="display:flex;justify-content:center;align-items:center;height:100vh;"><form action=credentials><div><label for=ssid>SSID:</label><input type=text id=ssid name=ssid></div><div><label for=psk>PSK:</label><input type=psk id=psk name=psk></div><button type=submit>Save credentials and restart</button></form></div></body></html>
     )rawliteral";
 
-    const char *HOST_ML = "wandering-water-6831.fly.dev";
-    const short HOST_ML_PORT = 443;
-    const char *PREDICT_ROUTE = "/predict";
-
     short responseCode = -1;
 
     AsyncWebServer server(80);
-    HTTPClient client;
-
-    String request(String body) {
-        Serial.println("[WEB]: Attempting request");
-        client.begin(WIFI::client, WEB::HOST_ML, WEB::HOST_ML_PORT, WEB::PREDICT_ROUTE, true);
-        client.addHeader("Content-Type", "application/json");
-        responseCode = client.POST(body);
-        String response = client.getString();
-        client.end();
-        Serial.println("[WEB]: Request complete CODE: " + String(responseCode) + " RESPONSE: " + response);
-        return response;
-    }
 }
 
 namespace SIN {
     bool relayState = false; 
     const int nReads = 3;
     const unsigned long rDelay = 100;
+    bool smart = false;
+    bool predict = false;
 
     const float vSrg[3] =     {245,   250,    255};
     const float vSrgMin[3] =  {225,   230,    235};
@@ -95,21 +81,35 @@ namespace MQTT {
     String CLIENT_ID = "<CLIENT_ID>";
     String POWER_TOPIC = "<CLIENT_ID>/power";
     String READINGS_TOPIC = "<CLIENT_ID>/readings";
+    String ONOFF_PREDICTION_TOPIC_SEND = "<CLIENT_ID>/predict/onoff_send";
+    String ONOFF_PREDICTION_TOPIC_RECEIVE = "<CLIENT_ID>/predict/onoff_receive";
+    String SMART_TOPIC = "<CLIENT_ID>/smartmode";
 
     PubSubClient client;
+    DynamicJsonDocument doc1(1024);
+    DynamicJsonDocument doc2(1024);
+    char buffer[256];
 
     void onMqttMessage(const char* topic, byte* payload, unsigned int length) {
-        Serial.println("\n[MQTT]: Recieved TOPIC: " + String(topic) + " PAYLOAD: " + String((char*) payload));
+        Serial.println("\n[MQTT]: Recieved TOPIC: " + String(topic));
+        DynamicJsonDocument message(length);
 
         if (strcmp(topic, MQTT::POWER_TOPIC.c_str()) == 0) {
-            DynamicJsonDocument message(1024);
             deserializeJson(message, payload);
-
             const bool state = message["state"];
             pinMode(LED_BUILTIN, OUTPUT);
             digitalWrite(LED_BUILTIN, !state); //WARNING: LED_BUILTIN seems to be active low
-            relayOn(!state);
-        }
+            // relayOn(!state);
+        } 
+        // else if(strcmp(topic, MQTT::ONOFF_PREDICTION_TOPIC_RECEIVE.c_str()) == 0) {
+        //     deserializeJson(message, payload);
+        //     Serial.println("GOT PREDICTION");
+
+        //     const bool state = message["response"];
+        //     pinMode(LED_BUILTIN, OUTPUT);
+        //     digitalWrite(LED_BUILTIN, !state); //WARNING: LED_BUILTIN seems to be active low
+        //     SIN::smart = state;
+        // }
     }
 }
 
@@ -127,13 +127,13 @@ void setup() {
 
     #ifdef HARD_CODED_CREDENTIALS
         LFS::file = LittleFS.open(LFS::MQTT_CLIENT_ID_PATH, "w");
-        LFS::file.print("abcdefghi");
+        LFS::file.print("nirmal");
         LFS::file.close();
 
         LFS::file = LittleFS.open(LFS::SELF_AP_CREDENTIALS_PATH, "w");
-        LFS::file.print("<SSID>");
+        LFS::file.print("Scorpius");
         LFS::file.print(',');
-        LFS::file.print("<PSK>");
+        LFS::file.print("LogIn.WiFi.NSMTFS");
         LFS::file.print(',');
         LFS::file.close();
     #endif
@@ -146,6 +146,9 @@ void setup() {
 
         MQTT::POWER_TOPIC = MQTT::CLIENT_ID + "/power";
         MQTT::READINGS_TOPIC = MQTT::CLIENT_ID + "/readings";
+        MQTT::ONOFF_PREDICTION_TOPIC_SEND = MQTT::CLIENT_ID + "/predict/onoff_send";
+        MQTT::ONOFF_PREDICTION_TOPIC_RECEIVE = MQTT::CLIENT_ID + "/predict/onoff_receive";
+        MQTT::SMART_TOPIC = MQTT::CLIENT_ID + "/smartmode";
 
         Serial.println("\n[LFS]: Retrieved MQTT client ID: " + MQTT::CLIENT_ID);
     } else {
@@ -206,7 +209,9 @@ void setup() {
         while (!MQTT::client.connected()) {
             if (MQTT::client.connect(MQTT::CLIENT_ID.c_str(), MQTT::HOST_USERNAME, MQTT::HOST_PASSWORD)) {
                 Serial.println("[MQTT]: Connected BROKER: " + String(MQTT::HOST) + ":" + String(MQTT::HOST_PORT));
-                MQTT::client.subscribe(MQTT::POWER_TOPIC.c_str());
+                MQTT::client.subscribe(MQTT::POWER_TOPIC.c_str(), 1);
+                MQTT::client.subscribe(MQTT::SMART_TOPIC.c_str(), 1);
+                MQTT::client.subscribe(MQTT::ONOFF_PREDICTION_TOPIC_RECEIVE.c_str(), 1);
             } else {
                 Serial.print(".");
                 delay(500);
@@ -215,9 +220,10 @@ void setup() {
 
         while (true) {
             MQTT::client.loop();
+            // delay(2000);
 
             // int sw = 0;
-            // // int sw = switchAct();
+            // bool sw = SIN::switchMain();
             // if (sw == 1) {
             //     if (getState()) relayOn(false);
             //     else relayOn(true);
@@ -225,34 +231,36 @@ void setup() {
             //     LittleFS.remove(LFS::SELF_AP_CREDENTIALS_PATH);
             //     Serial.println("[LFS]: Removed all home AP credentials");
             // }
+            // if (SIN::smart) relayOn(SIN::predict);
 
-            // DynamicJsonDocument doc(1024);
-            // DynamicJsonDocument doc2(1024);
+            DynamicJsonDocument doc(1024);
+            DynamicJsonDocument doc2(1024);
+            for (int i = 0; i < SIN::nReads; i++){
+                doc["v"] = analogRead(A0);
+                doc["i"] = analogRead(A0);
+                doc["time"] = time(NULL);
+
+                doc2[i] = doc;
+                // delay(SIN::rDelay);
+
+                // long t0 = millis();
+                // while ((millis()<t0+SIN::rDelay)&&(millis()-t0 >= 0)){
+                //     SIN::surgeProtect(0);
+                // }
+            } 
+
+            char buffer[256];
+            serializeJson(doc2, buffer);
+            MQTT::client.publish(MQTT::READINGS_TOPIC.c_str(), buffer);
+
+            DynamicJsonDocument doc3(1024);
+            doc3["device_id"] = MQTT::CLIENT_ID;
+            doc3["data reading"] = doc;
             
-            // for (int i = 0; i < SIN::nReads; i++){
-            //     doc["v"] = getV();
-            //     doc["i"] = getI();
-            //     doc["time"] = time(NULL);
+            char buffer2[256];
+            serializeJson(doc3, buffer2);
+            MQTT::client.publish(MQTT::ONOFF_PREDICTION_TOPIC_SEND.c_str(),buffer2);
 
-            //     doc2[i] = doc;
-            //     // delay(SIN::rDelay);
-
-            //     // long t0 = millis();
-            //     // while ((millis()<t0+SIN::rDelay)&&(millis()-t0 >= 0)){
-            //     //     SIN::surgeProtect(0);
-            //     // }
-            // } 
-
-            // char buffer[256];
-            // serializeJson(doc2, buffer);
-            // Serial.println(buffer);
-
-            // MQTT::client.publish(MQTT::READINGS_TOPIC.c_str(), buffer);
-
-
-            WEB::request("{\"device_id\":\"QEIZrUmZGUuzBqRnw0jZ\",\"data_reading\":{\"i\":0.9900436818128375,\"time\":1676362048419,\"v\":0.5681495890359043}}");
-            
-            
             delay(1000);
         }
     } else {
