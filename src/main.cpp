@@ -42,9 +42,10 @@ namespace WEB {
 namespace SIN {
     bool relayState = false; 
     const int nReads = 3;
-    const unsigned long rDelay = 100;
+    const unsigned long rDelay = 1000;
     bool smart = false;
     bool predict = false;
+    int req_count = 0;
 
     const float vSrg[3] =     {245,   250,    255};
     const float vSrgMin[3] =  {225,   230,    235};
@@ -54,22 +55,6 @@ namespace SIN {
         const float v = getV();
         if((v> SIN::vSrg[0]) || (v<SIN::vSrgMin[0]) || (getI()> SIN::iSrg[m])) relayOn(false);
     }
-
-    bool switchMain(){
-        bool s = false;
-        switch (switchAct()){
-            case 1:
-                s = relayOn(!getState());
-                Serial.println("Toggle");
-                break;
-
-            case 2:
-                LittleFS.remove(LFS::SELF_AP_CREDENTIALS_PATH);
-                Serial.println("Full Reset");
-                break;
-        }
-        return s;
-    }
 }
 
 namespace MQTT {
@@ -77,6 +62,8 @@ namespace MQTT {
     const short HOST_PORT = 1883;
     const char *HOST_USERNAME = "assassino";
     const char *HOST_PASSWORD = "assassino";
+
+    void offSmart();
 
     String CLIENT_ID = "<CLIENT_ID>";
     String POWER_TOPIC = "<CLIENT_ID>/power";
@@ -89,6 +76,7 @@ namespace MQTT {
     DynamicJsonDocument jsonReading(128);
     DynamicJsonDocument jsonReadings(512);
     DynamicJsonDocument jsonRequest(512);
+    DynamicJsonDocument jsonToggle(128);
     char buffer[256];
     unsigned char i;
 
@@ -99,9 +87,23 @@ namespace MQTT {
         if (strcmp(topic, MQTT::POWER_TOPIC.c_str()) == 0) {
             deserializeJson(message, payload);
             const bool state = message["state"];
-            pinMode(LED_BUILTIN, OUTPUT);
-            digitalWrite(LED_BUILTIN, !state); //WARNING: LED_BUILTIN seems to be active low
-            // relayOn(!state);
+            Serial.println("GOT POWER");
+            relayOn(state);
+            offSmart();
+        } 
+        if (strcmp(topic, MQTT::SMART_TOPIC.c_str()) == 0) {
+            deserializeJson(message, payload);
+            const bool state = message["state"];
+            Serial.println("GOT SMART");
+            SIN::smart = state;
+        } 
+        if (strcmp(topic, MQTT::ONOFF_PREDICTION_TOPIC_RECEIVE.c_str()) == 0) {
+            deserializeJson(message, payload);
+            const bool state = message["response"];
+            Serial.println("GOT PREDICTION");
+            // Serial.println("PRED VALUE :" + state);
+            SIN::predict = state;
+
         } 
         // else if(strcmp(topic, MQTT::ONOFF_PREDICTION_TOPIC_RECEIVE.c_str()) == 0) {
         //     deserializeJson(message, payload);
@@ -112,6 +114,37 @@ namespace MQTT {
         //     digitalWrite(LED_BUILTIN, !state); //WARNING: LED_BUILTIN seems to be active low
         //     SIN::smart = state;
         // }
+    }
+
+    bool switchMain(){
+        bool s = false;
+        switch (switchAct()){
+            case 1:
+                s = relayOn(!getState());
+                jsonToggle["state"] = getState();
+                serializeJson(jsonToggle, MQTT::buffer);
+                // Serial.println(buffer);
+                MQTT::client.publish(MQTT::POWER_TOPIC.c_str(), buffer);
+
+                Serial.println("Toggle");
+                offSmart();
+                break;
+
+            case 2:
+                LittleFS.remove(LFS::SELF_AP_CREDENTIALS_PATH);
+                Serial.println("Full Reset");
+                ESP.reset();
+                break;
+        }
+        return s;
+    }
+
+    void offSmart(){
+        jsonToggle["state"] = false;;
+        serializeJson(jsonToggle, MQTT::buffer);
+        // Serial.println(buffer);
+        MQTT::client.publish(MQTT::SMART_TOPIC.c_str(), buffer);
+        SIN::smart = false;
     }
 }
 
@@ -133,9 +166,9 @@ void setup() {
         LFS::file.close();
 
         LFS::file = LittleFS.open(LFS::SELF_AP_CREDENTIALS_PATH, "w");
-        LFS::file.print("shazni");
+        LFS::file.print("UOC_Staff");
         LFS::file.print(',');
-        LFS::file.print("12345678");
+        LFS::file.print("admin106");
         LFS::file.print(',');
         LFS::file.close();
     #endif
@@ -174,6 +207,7 @@ void setup() {
         while (WiFi.status() != WL_CONNECTED) {
             Serial.print(".");
             delay(500);
+            MQTT::switchMain();
         }
         Serial.println("\n[WIFI]: Connected to WiFi SSID: " + homeApSSID);
 
@@ -217,6 +251,7 @@ void setup() {
             } else {
                 Serial.print(".");
                 delay(500);
+                MQTT::switchMain();
             }
         }
 
@@ -224,39 +259,39 @@ void setup() {
             MQTT::client.loop();
             // delay(2000);
 
-            // int sw = 0;
-            // bool sw = SIN::switchMain();
-            // if (sw == 1) {
-            //     if (getState()) relayOn(false);
-            //     else relayOn(true);
-            // } else if (sw == 2){
-            //     LittleFS.remove(LFS::SELF_AP_CREDENTIALS_PATH);
-            //     Serial.println("[LFS]: Removed all home AP credentials");
-            // }
-            // if (SIN::smart) relayOn(SIN::predict);
+            MQTT::switchMain();
+            if (SIN::smart) relayOn(SIN::predict);
 
             MQTT::jsonReadings.clear();
+            MQTT::jsonRequest.clear();
             for (MQTT::i = 0; MQTT::i < SIN::nReads; MQTT::i++) {
-                MQTT::jsonReading["v"] = getI();
-                MQTT::jsonReading["i"] = getV();
+                MQTT::jsonReading.clear();
+                MQTT::jsonReading["v"] = getV();
+                MQTT::jsonReading["i"] = getI();
                 MQTT::jsonReading["time"] = time(NULL);
                 MQTT::jsonReadings[MQTT::i] = MQTT::jsonReading;
                 // delay(SIN::rDelay);
 
-                // long t0 = millis();
-                // while ((millis()<t0+SIN::rDelay)&&(millis()-t0 >= 0)){
-                //     SIN::surgeProtect(0);
-                // }
+                long t0 = millis();
+                while ((millis()<t0+SIN::rDelay)&&(millis()-t0 >= 0)){
+                    SIN::surgeProtect(0);
+                }
             }
             serializeJson(MQTT::jsonReadings, MQTT::buffer);
             MQTT::client.publish(MQTT::READINGS_TOPIC.c_str(), MQTT::buffer);
 
-            MQTT::jsonRequest["device_id"] = MQTT::CLIENT_ID;
-            MQTT::jsonRequest["data_reading"] = MQTT::jsonReading;
-            serializeJson(MQTT::jsonRequest, MQTT::buffer);
-            MQTT::client.publish(MQTT::ONOFF_PREDICTION_TOPIC_SEND.c_str(), MQTT::buffer);
+            SIN::req_count++;
 
-            delay(1000);
+            if(SIN::req_count>10){                                             //req per 10 reads
+                MQTT::jsonRequest["device_id"] = MQTT::CLIENT_ID;
+                MQTT::jsonRequest["data_reading"] = MQTT::jsonReadings[1];
+                serializeJson(MQTT::jsonRequest, MQTT::buffer);
+                Serial.println(MQTT::buffer);
+                MQTT::client.publish(MQTT::ONOFF_PREDICTION_TOPIC_SEND.c_str(), MQTT::buffer);
+                SIN::req_count = 0;
+            }
+
+            // delay(1000);
         }
     } else {
         //CASE: Create a softAP to change the authentication details

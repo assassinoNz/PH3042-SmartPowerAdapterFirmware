@@ -34,7 +34,7 @@ float getI(){
   digitalWrite(vOn,LOW);
   digitalWrite(iOn,HIGH);
   
-  for(int i = 0;i<100;i++){
+  for(int i = 0;i<count;i++){
     v = analogRead(A0);
     if(v>mx) mx=v;    
   }
@@ -79,7 +79,7 @@ bool getState(){
 
 void stable(){
   for(int i = 0;i<5;i++){
-    int v = analogRead(A0);  
+    analogRead(A0);  
     yield();
   }
 }

@@ -33,7 +33,7 @@
 #define sw D7
 
 #define relayPin D5
-#define count 10000
+#define count 1000
 #define relay_active LOW    //change depending on active high/low
 
 void setup_Analog();
