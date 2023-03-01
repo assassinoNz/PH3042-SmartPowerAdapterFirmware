@@ -1,4 +1,6 @@
-#define HARD_CODED_CREDENTIALS
+#define HARD_DEVICE_ID "assassino"
+// #define HARD_SSID "<SSID>"
+// #define HARD_PSK "<PSK>"
 
 #include <Arduino.h>
 #include <LittleFS.h>
@@ -10,10 +12,6 @@
 #include <ArduinoJson.h>
 #include <ESP8266httpUpdate.h>
 #include <sensorRead.h>
-
-namespace IO {
-    const unsigned char PIN_RESET = D4;
-}
 
 namespace LFS {
     const char *SELF_AP_CREDENTIALS_PATH = "/HomeAPCredentials.txt";
@@ -146,15 +144,17 @@ void setup() {
     //LittleFS
     LittleFS.begin();
 
-    #ifdef HARD_CODED_CREDENTIALS
+    #ifdef HARD_DEVICE_ID
         LFS::file = LittleFS.open(LFS::MQTT_CLIENT_ID_PATH, "w");
-        LFS::file.print("nirmal");
+        LFS::file.print(HARD_DEVICE_ID);
         LFS::file.close();
+    #endif
 
+    #ifdef HARD_SSID
         LFS::file = LittleFS.open(LFS::SELF_AP_CREDENTIALS_PATH, "w");
-        LFS::file.print("Scorpius");
+        LFS::file.print(HARD_SSID);
         LFS::file.print(',');
-        LFS::file.print("LogIn.WiFi.NSMTFS");
+        LFS::file.print(HARD_PSK);
         LFS::file.print(',');
         LFS::file.close();
     #endif
@@ -298,6 +298,10 @@ void setup() {
         });
         WEB::server.begin();
         Serial.println("\n[SELF_AP]: Configured server PORT: 80");
+
+        while (true) {
+            delay(2000);
+        };
     }
 }
 
