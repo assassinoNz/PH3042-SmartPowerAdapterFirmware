@@ -47,13 +47,17 @@ namespace SIN {
     bool predict = false;
     int req_count = 0;
 
+
     const float vSrg[3] =     {245,   250,    255};
     const float vSrgMin[3] =  {225,   230,    235};
     const float iSrg[3] =     {8,     9,      10};
 
     void surgeProtect(int m){
         const float v = getV();
-        if((v> SIN::vSrg[0]) || (v<SIN::vSrgMin[0]) || (getI()> SIN::iSrg[m])) relayOn(false);
+        if(getState() && ((v> SIN::vSrg[0]) || (v<SIN::vSrgMin[0]) || (getI()> SIN::iSrg[m]))){
+            relayOn(false);
+            Serial.println("TURNED OFF DUE TO SURGE");
+        }
     }
 }
 
@@ -102,7 +106,7 @@ namespace MQTT {
             const bool state = message["response"];
             Serial.println("GOT PREDICTION");
             // Serial.println("PRED VALUE :" + state);
-            SIN::predict = state;
+            // SIN::predict = state;
 
         } 
         // else if(strcmp(topic, MQTT::ONOFF_PREDICTION_TOPIC_RECEIVE.c_str()) == 0) {
@@ -274,10 +278,11 @@ void setup() {
 
                 long t0 = millis();
                 while ((millis()<t0+SIN::rDelay)&&(millis()-t0 >= 0)){
-                    SIN::surgeProtect(0);
+                    // SIN::surgeProtect(2);
                 }
             }
             serializeJson(MQTT::jsonReadings, MQTT::buffer);
+            // Serial.println(MQTT::buffer);
             MQTT::client.publish(MQTT::READINGS_TOPIC.c_str(), MQTT::buffer);
 
             SIN::req_count++;
