@@ -1,4 +1,4 @@
-#define HARD_DEVICE_ID "assassino"
+// #define HARD_DEVICE_ID "assassino"
 // #define HARD_SSID "<SSID>"
 // #define HARD_PSK "<PSK>"
 
