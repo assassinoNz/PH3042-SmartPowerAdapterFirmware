@@ -201,15 +201,15 @@ void setup() {
         Serial.println("[SETUP]: Checking for OTA updates");
         switch(ESPhttpUpdate.update(WIFI::client, WEB::HOST_MAIN, WEB::HOST_MAIN_PORT, WEB::FIRMWARE_ROUTE)) {
             case HTTP_UPDATE_FAILED: {
-                Serial.println("[OTA] Failed");
+                Serial.println("[OTA]: Failed BECAUSE: " + ESPhttpUpdate.getLastErrorString());
                 break;
             }
             case HTTP_UPDATE_NO_UPDATES: {
-                Serial.println("[OTA] No updates available");
+                Serial.println("[OTA]: No updates available");
                 break;
             }
             case HTTP_UPDATE_OK: {
-                Serial.println("[OTA] Successful");
+                Serial.println("[OTA]: Successful");
                 break;
             }
         }
